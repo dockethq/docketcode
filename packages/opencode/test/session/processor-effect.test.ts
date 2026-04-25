@@ -166,6 +166,7 @@ const deps = Layer.mergeAll(
   LLM.defaultLayer,
   Provider.defaultLayer,
   status,
+  Todo.layer
 ).pipe(Layer.provideMerge(infra))
 const env = Layer.mergeAll(
   TestLLMServer.layer,
