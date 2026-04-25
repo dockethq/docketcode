@@ -23,6 +23,7 @@ import * as CrossSpawnSpawner from "../../src/effect/cross-spawn-spawner"
 import { provideTmpdirServer } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { raw, reply, TestLLMServer } from "../lib/llm-server"
+import { Todo } from "../../src/session/todo"
 
 void Log.init({ print: false })
 

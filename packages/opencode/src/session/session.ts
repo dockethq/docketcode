@@ -663,7 +663,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
       delta: string
       todoID?: string
     }) {
-      yield* bus.publish(MessageV2.Event.PartDelta, input)
+      yield* bus.publish(MessageV2.Event.PartDelta, { ...input, todoID: input.todoID })
     })
 
     /** Finds the first message matching the predicate, searching newest-first. */
