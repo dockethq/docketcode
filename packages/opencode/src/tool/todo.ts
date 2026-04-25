@@ -3,6 +3,7 @@ import { Effect } from "effect"
 import * as Tool from "./tool"
 import DESCRIPTION_WRITE from "./todowrite.txt"
 import { Todo } from "../session/todo"
+import { TodoID } from "../session/schema"
 
 const parameters = z.object({
   todos: z.array(z.object(Todo.Info.shape)).describe("The updated todo list"),
@@ -29,16 +30,24 @@ export const TodoWriteTool = Tool.define<typeof parameters, Metadata, Todo.Servi
             metadata: {},
           })
 
+          // Assign IDs to new todos, preserve existing IDs
+          const resolved: Todo.Info[] = params.todos.map((t) => ({
+            id: t.id ?? TodoID.ascending(),
+            content: t.content,
+            status: t.status,
+            priority: t.priority,
+          }))
+
           yield* todo.update({
             sessionID: ctx.sessionID,
-            todos: params.todos,
+            todos: resolved,
           })
 
           return {
-            title: `${params.todos.filter((x) => x.status !== "completed").length} todos`,
-            output: JSON.stringify(params.todos, null, 2),
+            title: `${resolved.filter((x) => x.status !== "completed").length} todos`,
+            output: JSON.stringify(resolved, null, 2),
             metadata: {
-              todos: params.todos,
+              todos: resolved,
             },
           }
         }),

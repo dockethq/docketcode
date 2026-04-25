@@ -362,13 +362,16 @@ export interface Interface {
     messageID: MessageID
     partID: PartID
   }) => Effect.Effect<MessageV2.Part | undefined>
-  readonly updatePart: <T extends MessageV2.Part>(part: T) => Effect.Effect<T>
+  // readonly updatePart: <T extends MessageV2.Part>(part: T) => Effect.Effect<T>
+  readonly updatePart: <T extends MessageV2.Part>(part: T, options?: { todoID?: string }) => Effect.Effect<T>
+
   readonly updatePartDelta: (input: {
     sessionID: SessionID
     messageID: MessageID
     partID: PartID
     field: string
     delta: string
+    todoID?: string
   }) => Effect.Effect<void>
   /** Finds the first message matching the predicate, searching newest-first. */
   readonly findMessage: (
@@ -479,13 +482,15 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
         return msg
       }).pipe(Effect.withSpan("Session.updateMessage"))
 
-    const updatePart = <T extends MessageV2.Part>(part: T): Effect.Effect<T> =>
+    // const updatePart = <T extends MessageV2.Part>(part: T): Effect.Effect<T> =>
+    const updatePart = <T extends MessageV2.Part>(part: T, options?: { todoID?: string }): Effect.Effect<T> =>
       Effect.gen(function* () {
         yield* Effect.sync(() =>
           SyncEvent.run(MessageV2.Event.PartUpdated, {
             sessionID: part.sessionID,
             part: structuredClone(part),
             time: Date.now(),
+            todoID: options?.todoID
           }),
         )
         return part
@@ -656,6 +661,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service> =
       partID: PartID
       field: string
       delta: string
+      todoID?: string
     }) {
       yield* bus.publish(MessageV2.Event.PartDelta, input)
     })

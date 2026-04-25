@@ -9,6 +9,7 @@ import path from "path"
 import { existsSync } from "fs"
 import { Filesystem } from "../util"
 import { Glob } from "@opencode-ai/shared/util/glob"
+import { TodoID } from "../session/schema"
 
 const log = Log.create({ service: "json-migration" })
 
@@ -332,6 +333,7 @@ export async function run(db: SQLiteBunDatabase<any, any> | NodeSQLiteDatabase<a
         const todo = data[position]
         if (!todo?.content || !todo?.status || !todo?.priority) continue
         values.push({
+          id: TodoID.ascending(),
           session_id: sessionID,
           content: todo.content,
           status: todo.status,

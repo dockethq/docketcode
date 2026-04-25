@@ -20,6 +20,7 @@ import { Question } from "@/question"
 import { errorMessage } from "@/util/error"
 import { Log } from "@/util"
 import { isRecord } from "@/util/record"
+import { Todo } from "./todo"
 
 const DOOM_LOOP_THRESHOLD = 3
 const log = Log.create({ service: "session.processor" })
@@ -71,6 +72,7 @@ interface ProcessorContext extends Input {
   needsCompaction: boolean
   currentText: MessageV2.TextPart | undefined
   reasoningMap: Record<string, MessageV2.ReasoningPart>
+  activeTodoID: string | undefined
 }
 
 type StreamEvent = Event
@@ -90,6 +92,7 @@ export const layer: Layer.Layer<
   | Plugin.Service
   | SessionSummary.Service
   | SessionStatus.Service
+  | Todo.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -104,12 +107,25 @@ export const layer: Layer.Layer<
     const summary = yield* SessionSummary.Service
     const scope = yield* Scope.Scope
     const status = yield* SessionStatus.Service
+    const todo = yield* Todo.Service
 
     const create = Effect.fn("SessionProcessor.create")(function* (input: Input) {
       // Pre-capture snapshot before the LLM stream starts. The AI SDK
       // may execute tools internally before emitting start-step events,
       // so capturing inside the event handler can be too late.
       const initialSnapshot = yield* snapshot.track()
+
+
+      // Pre-load the active todo for this session so that text-delta events
+      // emitted before any todowrite call in this turn already carry the
+      // correct todoID. Prefer in_progress; fall back to the last non-pending
+      // todo (the most recently worked-on item) so that summary text after
+      // a todo is completed still gets tagged.
+      const currentTodos = yield* todo.get(input.sessionID)
+      const activeTodo =
+        currentTodos.find((t) => t.status === "in_progress") ??
+        [...currentTodos].reverse().find((t) => t.status !== "pending")
+
       const ctx: ProcessorContext = {
         assistantMessage: input.assistantMessage,
         sessionID: input.sessionID,
@@ -121,6 +137,8 @@ export const layer: Layer.Layer<
         needsCompaction: false,
         currentText: undefined,
         reasoningMap: {},
+        // activeTodoID: undefined,
+        activeTodoID: activeTodo?.id,
       }
       let aborted = false
       const slog = log.clone().tag("session.id", input.sessionID).tag("messageID", input.assistantMessage.id)
@@ -130,6 +148,10 @@ export const layer: Layer.Layer<
           providerID: input.model.providerID,
           aborted,
         })
+
+      // Wrap session.updatePart to automatically inject the active todoID
+      const updatePart = <T extends MessageV2.Part>(part: T) =>
+        session.updatePart(part, { todoID: ctx.activeTodoID })
 
       const settleToolCall = Effect.fn("SessionProcessor.settleToolCall")(function* (toolCallID: string) {
         const done = ctx.toolcalls[toolCallID]?.done
@@ -158,7 +180,7 @@ export const layer: Layer.Layer<
       ) {
         const match = yield* readToolCall(toolCallID)
         if (!match) return
-        const part = yield* session.updatePart(update(match.part))
+        const part = yield* updatePart(update(match.part))
         ctx.toolcalls[toolCallID] = {
           ...match.call,
           partID: part.id,
@@ -179,7 +201,7 @@ export const layer: Layer.Layer<
       ) {
         const match = yield* readToolCall(toolCallID)
         if (!match || match.part.state.status !== "running") return
-        yield* session.updatePart({
+        yield* updatePart({
           ...match.part,
           state: {
             status: "completed",
@@ -192,12 +214,26 @@ export const layer: Layer.Layer<
           },
         })
         yield* settleToolCall(toolCallID)
+        
+        // Track which todo is active for subsequent part deltas
+        if (match.part.tool === "todowrite") {
+          try {
+            const todos = JSON.parse(output.output)
+            if (Array.isArray(todos)) {
+              const active =
+                todos.find((t: any) => t.status === "in_progress") ??
+                [...todos].reverse().find((t: any) => t.status !== "pending")
+              ctx.activeTodoID = active?.id
+            }
+          } catch {}
+        }
+
       })
 
       const failToolCall = Effect.fn("SessionProcessor.failToolCall")(function* (toolCallID: string, error: unknown) {
         const match = yield* readToolCall(toolCallID)
         if (!match || match.part.state.status !== "running") return false
-        yield* session.updatePart({
+        yield* updatePart({
           ...match.part,
           state: {
             status: "error",
@@ -230,7 +266,7 @@ export const layer: Layer.Layer<
               time: { start: Date.now() },
               metadata: value.providerMetadata,
             }
-            yield* session.updatePart(ctx.reasoningMap[value.id])
+            yield* updatePart(ctx.reasoningMap[value.id])
             return
 
           case "reasoning-delta":
@@ -243,6 +279,7 @@ export const layer: Layer.Layer<
               partID: ctx.reasoningMap[value.id].id,
               field: "text",
               delta: value.text,
+              todoID: ctx.activeTodoID
             })
             return
 
@@ -252,7 +289,7 @@ export const layer: Layer.Layer<
             ctx.reasoningMap[value.id].text = ctx.reasoningMap[value.id].text
             ctx.reasoningMap[value.id].time = { ...ctx.reasoningMap[value.id].time, end: Date.now() }
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
-            yield* session.updatePart(ctx.reasoningMap[value.id])
+            yield* updatePart(ctx.reasoningMap[value.id])
             delete ctx.reasoningMap[value.id]
             return
 
@@ -260,7 +297,7 @@ export const layer: Layer.Layer<
             if (ctx.assistantMessage.summary) {
               throw new Error(`Tool call not allowed while generating summary: ${value.toolName}`)
             }
-            const part = yield* session.updatePart({
+            const part = yield* updatePart({
               id: ctx.toolcalls[value.id]?.partID ?? PartID.ascending(),
               messageID: ctx.assistantMessage.id,
               sessionID: ctx.assistantMessage.sessionID,
@@ -345,7 +382,7 @@ export const layer: Layer.Layer<
 
           case "start-step":
             if (!ctx.snapshot) ctx.snapshot = yield* snapshot.track()
-            yield* session.updatePart({
+            yield* updatePart({
               id: PartID.ascending(),
               messageID: ctx.assistantMessage.id,
               sessionID: ctx.sessionID,
@@ -363,7 +400,7 @@ export const layer: Layer.Layer<
             ctx.assistantMessage.finish = value.finishReason
             ctx.assistantMessage.cost += usage.cost
             ctx.assistantMessage.tokens = usage.tokens
-            yield* session.updatePart({
+            yield* updatePart({
               id: PartID.ascending(),
               reason: value.finishReason,
               snapshot: yield* snapshot.track(),
@@ -377,7 +414,7 @@ export const layer: Layer.Layer<
             if (ctx.snapshot) {
               const patch = yield* snapshot.patch(ctx.snapshot)
               if (patch.files.length) {
-                yield* session.updatePart({
+                yield* updatePart({
                   id: PartID.ascending(),
                   messageID: ctx.assistantMessage.id,
                   sessionID: ctx.sessionID,
@@ -413,7 +450,7 @@ export const layer: Layer.Layer<
               time: { start: Date.now() },
               metadata: value.providerMetadata,
             }
-            yield* session.updatePart(ctx.currentText)
+            yield* updatePart(ctx.currentText)
             return
 
           case "text-delta":
@@ -426,6 +463,7 @@ export const layer: Layer.Layer<
               partID: ctx.currentText.id,
               field: "text",
               delta: value.text,
+              todoID: ctx.activeTodoID
             })
             return
 
@@ -447,7 +485,7 @@ export const layer: Layer.Layer<
               ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
             }
             if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
-            yield* session.updatePart(ctx.currentText)
+            yield* updatePart(ctx.currentText)
             ctx.currentText = undefined
             return
 
@@ -464,7 +502,7 @@ export const layer: Layer.Layer<
         if (ctx.snapshot) {
           const patch = yield* snapshot.patch(ctx.snapshot)
           if (patch.files.length) {
-            yield* session.updatePart({
+            yield* updatePart({
               id: PartID.ascending(),
               messageID: ctx.assistantMessage.id,
               sessionID: ctx.sessionID,
@@ -479,13 +517,13 @@ export const layer: Layer.Layer<
         if (ctx.currentText) {
           const end = Date.now()
           ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
-          yield* session.updatePart(ctx.currentText)
+          yield* updatePart(ctx.currentText)
           ctx.currentText = undefined
         }
 
         for (const part of Object.values(ctx.reasoningMap)) {
           const end = Date.now()
-          yield* session.updatePart({
+          yield* updatePart({
             ...part,
             time: { start: part.time.start ?? end, end },
           })
@@ -504,7 +542,7 @@ export const layer: Layer.Layer<
           const part = match.part
           const end = Date.now()
           const metadata = "metadata" in part.state && isRecord(part.state.metadata) ? part.state.metadata : {}
-          yield* session.updatePart({
+          yield* updatePart({
             ...part,
             state: {
               ...part.state,
@@ -613,6 +651,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(SessionStatus.defaultLayer),
     Layer.provide(Bus.layer),
     Layer.provide(Config.defaultLayer),
+    Layer.provide(Todo.defaultLayer),
   ),
 )
 

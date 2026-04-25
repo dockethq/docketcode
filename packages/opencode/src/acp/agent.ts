@@ -45,7 +45,7 @@ import { Installation } from "@/installation"
 import { MessageV2 } from "@/session/message-v2"
 import { Config } from "@/config"
 import { ConfigMCP } from "@/config/mcp"
-import { Todo } from "@/session/todo"
+// import { Todo } from "@/session/todo"
 import { z } from "zod"
 import { LoadAPIKeyError } from "ai"
 import type { AssistantMessage, Event, OpencodeClient, SessionMessageResponse, ToolPart } from "@opencode-ai/sdk/v2"
@@ -372,7 +372,16 @@ export class Agent implements ACPAgent {
               }
 
               if (part.tool === "todowrite") {
-                const parsedTodos = z.array(Todo.Info).safeParse(JSON.parse(part.state.output))
+                // id may be absent in outputs from older sessions — parse leniently
+                const todoItemSchema = z.object({
+                  id: z.string().optional(),
+                  content: z.string(),
+                  status: z.string(),
+                  priority: z.string(),
+                })
+                const parsedTodos = z.array(todoItemSchema).safeParse(JSON.parse(part.state.output))
+
+                // const parsedTodos = z.array(Todo.Info).safeParse(JSON.parse(part.state.output))
                 if (parsedTodos.success) {
                   await this.connection
                     .sessionUpdate({
@@ -901,7 +910,16 @@ export class Agent implements ACPAgent {
             }
 
             if (part.tool === "todowrite") {
-              const parsedTodos = z.array(Todo.Info).safeParse(JSON.parse(part.state.output))
+              const todoItemSchema = z.object({
+                id: z.string().optional(),
+                content: z.string(),
+                status: z.string(),
+                priority: z.string(),
+              })
+              const parsedTodos = z.array(todoItemSchema).safeParse(JSON.parse(part.state.output))
+
+
+              // const parsedTodos = z.array(Todo.Info).safeParse(JSON.parse(part.state.output))
               if (parsedTodos.success) {
                 await this.connection
                   .sessionUpdate({

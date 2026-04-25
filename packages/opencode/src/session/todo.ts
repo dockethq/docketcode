@@ -1,6 +1,7 @@
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
-import { SessionID } from "./schema"
+// import { SessionID } from "./schema"
+import { SessionID, TodoID } from "./schema"
 import { Effect, Layer, Context } from "effect"
 import z from "zod"
 import { Database, eq, asc } from "../storage"
@@ -8,6 +9,7 @@ import { TodoTable } from "./session.sql"
 
 export const Info = z
   .object({
+    id: z.string().describe("Unique identifier for the todo" ),
     content: z.string().describe("Brief description of the task"),
     status: z.string().describe("Current status of the task: pending, in_progress, completed, cancelled"),
     priority: z.string().describe("Priority level of the task: high, medium, low"),
@@ -45,6 +47,7 @@ export const layer = Layer.effect(
           db.insert(TodoTable)
             .values(
               input.todos.map((todo, position) => ({
+                id: todo.id as unknown as import("./schema").TodoID,
                 session_id: input.sessionID,
                 content: todo.content,
                 status: todo.status,
@@ -65,6 +68,7 @@ export const layer = Layer.effect(
         ),
       )
       return rows.map((row) => ({
+        id: row.id as string,
         content: row.content,
         status: row.status,
         priority: row.priority,

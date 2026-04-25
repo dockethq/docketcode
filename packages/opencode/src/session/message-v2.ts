@@ -603,6 +603,7 @@ export const Event = {
       sessionID: SessionID.zod,
       part: Part.zod,
       time: z.number(),
+      todoID: Schema.optional(Schema.String),
     }),
   }),
   PartDelta: BusEvent.define(
@@ -613,6 +614,7 @@ export const Event = {
       partID: PartID.zod,
       field: z.string(),
       delta: z.string(),
+      todoID: Schema.optional(Schema.String),
     }),
   ),
   PartRemoved: SyncEvent.define({

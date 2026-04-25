@@ -4,6 +4,17 @@ import { Identifier } from "@/id/id"
 import { zod, ZodOverride } from "@/util/effect-zod"
 import { withStatics } from "@/util/schema"
 
+
+export const TodoID = Schema.String.annotate({ [ZodOverride]: Identifier.schema("todo") }).pipe(
+  Schema.brand("TodoID"),
+  withStatics((s) => ({
+    ascending: (id?: string) => s.make(Identifier.ascending("todo", id)),
+    zod: zod(s),
+  })),
+)
+
+export type TodoID = Schema.Schema.Type<typeof TodoID>
+
 export const SessionID = Schema.String.annotate({ [ZodOverride]: Identifier.schema("session") }).pipe(
   Schema.brand("SessionID"),
   withStatics((s) => ({
