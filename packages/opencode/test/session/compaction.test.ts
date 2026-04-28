@@ -27,6 +27,7 @@ import { ProviderTest } from "../fake/provider"
 import { testEffect } from "../lib/effect"
 import * as CrossSpawnSpawner from "../../src/effect/cross-spawn-spawner"
 import { Todo } from "../../src/session/todo"
+import { Activity } from "../../src/session/activity"
 
 void Log.init({ print: false })
 
@@ -280,6 +281,7 @@ function liveRuntime(layer: Layer.Layer<LLM.Service>, provider = ProviderTest.fa
   return ManagedRuntime.make(
     Layer.mergeAll(SessionCompaction.layer.pipe(Layer.provide(processor)), processor, bus, status).pipe(
       Layer.provide(Todo.layer),
+      Layer.provide(Activity.layer),
       Layer.provide(provider.layer),
       Layer.provide(SessionNs.defaultLayer),
       Layer.provide(Snapshot.defaultLayer),

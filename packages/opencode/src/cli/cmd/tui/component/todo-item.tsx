@@ -44,15 +44,14 @@ export function TodoItem(props: TodoItemProps) {
         <box flexDirection="column" marginLeft={4}>
           <text
             style={{
-              fg: theme.brand,
-              dim: true,
+              fg: theme.accent,
             }}
           >
             ↳ {props.streamLabel}
           </text>
           <Show when={props.streamCode}>
             <box
-              borderStyle="round"
+              borderStyle="rounded"
               borderColor={theme.border}
               paddingLeft={1}
               paddingRight={1}
