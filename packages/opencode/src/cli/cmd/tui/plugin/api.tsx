@@ -155,6 +155,9 @@ function stateApi(sync: ReturnType<typeof useSync>): TuiPluginApi["state"] {
       todo(sessionID) {
         return sync.data.todo[sessionID] ?? []
       },
+      activity(sessionID) {
+        return sync.data.activity[sessionID] ?? []
+      },
       messages(sessionID) {
         return sync.data.message[sessionID] ?? []
       },

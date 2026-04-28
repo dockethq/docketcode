@@ -7,7 +7,7 @@ import type { Snapshot } from "../snapshot"
 import type { Permission } from "../permission"
 import type { ProjectID } from "../project/schema"
 // import type { SessionID, MessageID, PartID } from "./schema"
-import type { SessionID, MessageID, PartID, TodoID } from "./schema"
+import type { SessionID, MessageID, PartID, TodoID, ActivityID } from "./schema"
 import type { WorkspaceID } from "../control-plane/schema"
 import { Timestamps } from "../storage/schema.sql"
 
@@ -124,3 +124,27 @@ export const PermissionTable = sqliteTable("permission", {
   ...Timestamps,
   data: text({ mode: "json" }).notNull().$type<Permission.Ruleset>(),
 })
+
+export const ActivityTable = sqliteTable(
+  "activity",
+  {
+    id: text().$type<ActivityID>().primaryKey(),
+    session_id: text()
+      .$type<SessionID>()
+      .notNull()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    todo_id: text().$type<TodoID>(),
+    tool: text().notNull(),
+    status: text().notNull(), // "started" | "completed" | "error"
+    label: text().notNull(),
+    file_path: text(),
+    content: text(), // actual code: new_string for edit, content for write, command for bash, patch for apply_patch
+    child_session_id: text().$type<SessionID>(),
+    ...Timestamps,
+  },
+  (table) => [
+    index("activity_session_idx").on(table.session_id),
+    index("activity_session_time_idx").on(table.session_id, table.time_created),
+    index("activity_todo_idx").on(table.todo_id),
+  ],
+)

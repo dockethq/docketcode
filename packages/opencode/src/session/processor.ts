@@ -21,6 +21,7 @@ import { errorMessage } from "@/util/error"
 import { Log } from "@/util"
 import { isRecord } from "@/util/record"
 import { Todo } from "./todo"
+import { Activity } from "./activity"
 
 const DOOM_LOOP_THRESHOLD = 3
 const log = Log.create({ service: "session.processor" })
@@ -93,6 +94,7 @@ export const layer: Layer.Layer<
   | SessionSummary.Service
   | SessionStatus.Service
   | Todo.Service
+  | Activity.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -108,6 +110,7 @@ export const layer: Layer.Layer<
     const scope = yield* Scope.Scope
     const status = yield* SessionStatus.Service
     const todo = yield* Todo.Service
+    const activity = yield* Activity.Service
 
     const create = Effect.fn("SessionProcessor.create")(function* (input: Input) {
       // Pre-capture snapshot before the LLM stream starts. The AI SDK
@@ -215,6 +218,34 @@ export const layer: Layer.Layer<
         })
         yield* settleToolCall(toolCallID)
         
+        // Record completed activity
+        if (Activity.shouldRecord(match.part.tool)) {
+          const input = (match.part.state.input ?? {}) as Record<string, unknown>
+          const label = Activity.toolLabel(match.part.tool, input)
+          const { filePath, content: inputContent } = Activity.extractContent(match.part.tool, input)
+          // For completed tools, combine input code with output (e.g., bash command + its output)
+          let content = inputContent
+          if (match.part.tool === "bash" && output.output) {
+            content = (inputContent ? `$ ${inputContent}\n` : "") + output.output.slice(0, 2048)
+          }
+          const childSessionID =
+            match.part.tool === "task" && isRecord(output.metadata) && typeof output.metadata.sessionId === "string"
+              ? (output.metadata.sessionId as SessionID)
+              : undefined
+          yield* activity
+            .record({
+              sessionID: ctx.sessionID,
+              todoID: ctx.activeTodoID,
+              tool: match.part.tool,
+              status: "completed",
+              label,
+              filePath,
+              content,
+              childSessionID,
+            })
+            .pipe(Effect.ignore)
+        }
+
         // Track which todo is active for subsequent part deltas
         if (match.part.tool === "todowrite") {
           try {
@@ -242,6 +273,25 @@ export const layer: Layer.Layer<
             time: { start: match.part.state.time.start, end: Date.now() },
           },
         })
+
+        // Record error activity
+        if (Activity.shouldRecord(match.part.tool)) {
+          const input = (match.part.state.input ?? {}) as Record<string, unknown>
+          const label = Activity.toolLabel(match.part.tool, input)
+          const { filePath, content } = Activity.extractContent(match.part.tool, input)
+          yield* activity
+            .record({
+              sessionID: ctx.sessionID,
+              todoID: ctx.activeTodoID,
+              tool: match.part.tool,
+              status: "error",
+              label,
+              filePath,
+              content,
+            })
+            .pipe(Effect.ignore)
+        }
+
         if (error instanceof Permission.RejectedError || error instanceof Question.RejectedError) {
           ctx.blocked = ctx.shouldBreak
         }
@@ -338,6 +388,29 @@ export const layer: Layer.Layer<
                 ? { ...value.providerMetadata, providerExecuted: true }
                 : value.providerMetadata,
             }))
+
+            // Record coding activity for non-hidden tools
+            if (Activity.shouldRecord(value.toolName)) {
+              const input = (value.input ?? {}) as Record<string, unknown>
+              const label = Activity.toolLabel(value.toolName, input)
+              const { filePath, content } = Activity.extractContent(value.toolName, input)
+              const childSessionID =
+                value.toolName === "task" && typeof input.task_id === "string"
+                  ? (input.task_id as SessionID)
+                  : undefined
+              yield* activity
+                .record({
+                  sessionID: ctx.sessionID,
+                  todoID: ctx.activeTodoID,
+                  tool: value.toolName,
+                  status: "started",
+                  label,
+                  filePath,
+                  content,
+                  childSessionID,
+                })
+                .pipe(Effect.ignore)
+            }
 
             const parts = MessageV2.parts(ctx.assistantMessage.id)
             const recentParts = parts.slice(-DOOM_LOOP_THRESHOLD)
@@ -652,6 +725,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Bus.layer),
     Layer.provide(Config.defaultLayer),
     Layer.provide(Todo.defaultLayer),
+    Layer.provide(Activity.defaultLayer),
   ),
 )
 

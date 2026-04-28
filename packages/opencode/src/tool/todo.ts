@@ -6,7 +6,14 @@ import { Todo } from "../session/todo"
 import { TodoID } from "../session/schema"
 
 const parameters = z.object({
-  todos: z.array(z.object(Todo.Info.shape)).describe("The updated todo list"),
+  todos: z
+    .array(
+      z.object({
+        ...Todo.Info.shape,
+        id: z.string().optional().describe("Unique identifier for the todo — omit for new todos, include to update existing"),
+      }),
+    )
+    .describe("The updated todo list"),
 })
 
 type Metadata = {
@@ -30,9 +37,10 @@ export const TodoWriteTool = Tool.define<typeof parameters, Metadata, Todo.Servi
             metadata: {},
           })
 
-          // Assign IDs to new todos, preserve existing IDs
+          // Assign IDs: only preserve system-generated IDs (tod_ prefix),
+          // generate fresh IDs for new todos or LLM-invented IDs that could collide
           const resolved: Todo.Info[] = params.todos.map((t) => ({
-            id: t.id ?? TodoID.ascending(),
+            id: t.id && t.id.startsWith("tod") ? t.id : TodoID.ascending(),
             content: t.content,
             status: t.status,
             priority: t.priority,

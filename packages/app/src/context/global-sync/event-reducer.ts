@@ -176,6 +176,17 @@ export function applyDirectoryEvent(input: {
       input.setSessionTodo?.(props.sessionID, props.todos)
       break
     }
+    case "activity.recorded": {
+      const props = event.properties as {
+        sessionID: string
+        activity: { id: string; sessionID: string; tool: string; status: string; label: string; childSessionID?: string; time: { created: number } }
+      }
+      const existing = input.store.activity[props.sessionID] ?? []
+      // Keep the latest 50 entries per session, newest first
+      const updated = [props.activity, ...existing].slice(0, 50)
+      input.setStore("activity", props.sessionID, updated)
+      break
+    }
     case "session.status": {
       const props = event.properties as { sessionID: string; status: SessionStatus }
       input.setStore("session_status", props.sessionID, reconcile(props.status))

@@ -44,18 +44,28 @@ export const layer = Layer.effect(
         Database.transaction((db) => {
           db.delete(TodoTable).where(eq(TodoTable.session_id, input.sessionID)).run()
           if (input.todos.length === 0) return
-          db.insert(TodoTable)
-            .values(
-              input.todos.map((todo, position) => ({
+          for (const [position, todo] of input.todos.entries()) {
+            db.insert(TodoTable)
+              .values({
                 id: todo.id as unknown as import("./schema").TodoID,
                 session_id: input.sessionID,
                 content: todo.content,
                 status: todo.status,
                 priority: todo.priority,
                 position,
-              })),
-            )
-            .run()
+              })
+              .onConflictDoUpdate({
+                target: TodoTable.id,
+                set: {
+                  session_id: input.sessionID,
+                  content: todo.content,
+                  status: todo.status,
+                  priority: todo.priority,
+                  position,
+                },
+              })
+              .run()
+          }
         }),
       )
       yield* bus.publish(Event.Updated, input)
