@@ -15,16 +15,6 @@ export const TodoID = Schema.String.annotate({ [ZodOverride]: Identifier.schema(
 
 export type TodoID = Schema.Schema.Type<typeof TodoID>
 
-export const ActivityID = Schema.String.annotate({ [ZodOverride]: Identifier.schema("activity") }).pipe(
-  Schema.brand("ActivityID"),
-  withStatics((s) => ({
-    ascending: (id?: string) => s.make(Identifier.ascending("activity", id)),
-    zod: zod(s),
-  })),
-)
-
-export type ActivityID = Schema.Schema.Type<typeof ActivityID>
-
 export const SessionID = Schema.String.annotate({ [ZodOverride]: Identifier.schema("session") }).pipe(
   Schema.brand("SessionID"),
   withStatics((s) => ({

@@ -2,7 +2,6 @@
 import { defineConfig } from "astro/config"
 import starlight from "@astrojs/starlight"
 import solidJs from "@astrojs/solid-js"
-import react from "@astrojs/react"
 import cloudflare from "@astrojs/cloudflare"
 import theme from "toolbeam-docs-theme"
 import config from "./config.mjs"

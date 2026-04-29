@@ -13,7 +13,6 @@ import { SessionShare } from "@/share"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
-import { Activity } from "@/session/activity"
 import { Effect } from "effect"
 import { Agent } from "@/agent/agent"
 import { Snapshot } from "@/snapshot"
@@ -196,53 +195,6 @@ export const SessionRoutes = lazy(() =>
         return jsonRequest("SessionRoutes.todo", c, function* () {
           const todo = yield* Todo.Service
           return yield* todo.get(sessionID)
-        })
-      },
-    )
-    .get(
-      "/:sessionID/activity",
-      describeRoute({
-        summary: "Get session activity",
-        description:
-          "Retrieve the coding activity log for a session, showing tool invocations and their outcomes.",
-        operationId: "session.activity",
-        responses: {
-          200: {
-            description: "Activity log",
-            content: {
-              "application/json": {
-                schema: resolver(Activity.Info.array()),
-              },
-            },
-          },
-          ...errors(400, 404),
-        },
-      }),
-      validator(
-        "param",
-        z.object({
-          sessionID: SessionID.zod,
-        }),
-      ),
-      validator(
-        "query",
-        z.object({
-          limit: z.coerce
-            .number()
-            .int()
-            .min(1)
-            .max(200)
-            .optional()
-            .meta({ description: "Maximum number of activity entries to return (default 50)" }),
-          todoID: z.string().optional().meta({ description: "Filter activity by a specific todo item ID" }),
-        }),
-      ),
-      async (c) => {
-        const sessionID = c.req.valid("param").sessionID
-        const query = c.req.valid("query")
-        return jsonRequest("SessionRoutes.activity", c, function* () {
-          const svc = yield* Activity.Service
-          return yield* svc.get(sessionID, { limit: query.limit, todoID: query.todoID })
         })
       },
     )

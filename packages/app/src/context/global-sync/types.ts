@@ -30,16 +30,6 @@ export type ProjectMeta = {
   }
 }
 
-export type ActivityInfo = {
-  id: string
-  sessionID: string
-  tool: string
-  status: string
-  label: string
-  childSessionID?: string
-  time: { created: number }
-}
-
 export type State = {
   status: "loading" | "partial" | "complete"
   agent: Agent[]
@@ -61,9 +51,6 @@ export type State = {
   }
   todo: {
     [sessionID: string]: Todo[]
-  }
-  activity: {
-    [sessionID: string]: ActivityInfo[]
   }
   permission: {
     [sessionID: string]: PermissionRequest[]

@@ -60,9 +60,6 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       todo: {
         [sessionID: string]: Todo[]
       }
-      activity: {
-        [sessionID: string]: { id: string; tool: string; status: string; label: string; childSessionID?: string; time: { created: number } }[]
-      }
       message: {
         [sessionID: string]: Message[]
       }
@@ -98,7 +95,6 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       session_status: {},
       session_diff: {},
       todo: {},
-      activity: {},
       message: {},
       part: {},
       lsp: [],
@@ -198,16 +194,6 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         case "todo.updated":
           setStore("todo", event.properties.sessionID, event.properties.todos)
           break
-
-        case "activity.recorded": {
-          const props = event.properties as {
-            sessionID: string
-            activity: { id: string; tool: string; status: string; label: string; childSessionID?: string; time: { created: number } }
-          }
-          const existing = store.activity[props.sessionID] ?? []
-          setStore("activity", props.sessionID, [props.activity, ...existing].slice(0, 50))
-          break
-        }
 
         case "session.diff":
           setStore("session_diff", event.properties.sessionID, event.properties.diff)

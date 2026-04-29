@@ -5,13 +5,11 @@ import { DockTray } from "@opencode-ai/ui/dock-surface"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { useSpring } from "@opencode-ai/ui/motion-spring"
 import { TextReveal } from "@opencode-ai/ui/text-reveal"
-import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
 import { TextStrikethrough } from "@opencode-ai/ui/text-strikethrough"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
-import { Index, Show, createEffect, createMemo } from "solid-js"
+import { Index, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
-import type { TodoStreamItem } from "./session-composer-state"
 
 const doneToken = "\u0000done\u0000"
 const totalToken = "\u0000total\u0000"
@@ -44,7 +42,6 @@ function dot(status: Todo["status"]) {
 export function SessionTodoDock(props: {
   sessionID?: string
   todos: Todo[]
-  stream?: TodoStreamItem[]
   collapseLabel: string
   expandLabel: string
   dockProgress: number
@@ -74,17 +71,7 @@ export function SessionTodoDock(props: {
       props.todos[0],
   )
 
-  const streamLabel = createMemo(() => {
-    const items = props.stream
-    if (!items?.length) return undefined
-    // Show the deepest (most specific) activity label
-    return items[items.length - 1]!.label
-  })
-
-  const preview = createMemo(() => {
-    // When collapsed, prefer showing the stream activity if available
-    return streamLabel() ?? active()?.content ?? ""
-  })
+  const preview = createMemo(() => active()?.content ?? "")
   const collapse = useSpring(() => (store.collapsed ? 1 : 0), { visualDuration: 0.3, bounce: 0 })
   const dock = createMemo(() => Math.max(0, Math.min(1, props.dockProgress)))
   const shut = createMemo(() => 1 - dock())
@@ -203,14 +190,14 @@ export function SessionTodoDock(props: {
             opacity: `${Math.max(0, Math.min(1, 1 - hide()))}`,
           }}
         >
-          <TodoList todos={props.todos} stream={props.stream} />
+          <TodoList todos={props.todos} />
         </div>
       </div>
     </DockTray>
   )
 }
 
-function TodoList(props: { todos: Todo[]; stream?: TodoStreamItem[] }) {
+function TodoList(props: { todos: Todo[] }) {
   const [store, setStore] = createStore({
     stuck: false,
   })
@@ -225,53 +212,38 @@ function TodoList(props: { todos: Todo[]; stream?: TodoStreamItem[] }) {
         }}
       >
         <Index each={props.todos}>
-          {(todo) => {
-            const isActive = createMemo(() => todo().status === "in_progress")
-            const activeItems = createMemo(() => {
-              if (!isActive()) return undefined
-              const items = props.stream
-              if (!items?.length) return undefined
-              return items
-            })
-
-            return (
-              <div data-slot="todo-item-group">
-                <Checkbox
-                  readOnly
-                  checked={todo().status === "completed"}
-                  indeterminate={todo().status === "in_progress"}
-                  data-in-progress={todo().status === "in_progress" ? "" : undefined}
-                  data-state={todo().status}
-                  icon={dot(todo().status)}
-                  style={{
-                    "--checkbox-align": "flex-start",
-                    "--checkbox-offset": "1px",
-                    transition: "opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
-                    opacity: todo().status === "pending" ? "0.94" : "1",
-                  }}
-                >
-                  <TextStrikethrough
-                    active={todo().status === "completed" || todo().status === "cancelled"}
-                    text={todo().content}
-                    class="text-14-regular min-w-0 break-words"
-                    style={{
-                      "line-height": "var(--line-height-normal)",
-                      transition:
-                        "color 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1)), opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
-                      color:
-                        todo().status === "completed" || todo().status === "cancelled"
-                          ? "var(--text-weak)"
-                          : "var(--text-strong)",
-                      opacity: todo().status === "pending" ? "0.92" : "1",
-                    }}
-                  />
-                </Checkbox>
-                <Show when={activeItems()}>
-                  {(items) => <TodoStreamView items={items()} />}
-                </Show>
-              </div>
-            )
-          }}
+          {(todo) => (
+            <Checkbox
+              readOnly
+              checked={todo().status === "completed"}
+              indeterminate={todo().status === "in_progress"}
+              data-in-progress={todo().status === "in_progress" ? "" : undefined}
+              data-state={todo().status}
+              icon={dot(todo().status)}
+              style={{
+                "--checkbox-align": "flex-start",
+                "--checkbox-offset": "1px",
+                transition: "opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+                opacity: todo().status === "pending" ? "0.94" : "1",
+              }}
+            >
+              <TextStrikethrough
+                active={todo().status === "completed" || todo().status === "cancelled"}
+                text={todo().content}
+                class="text-14-regular min-w-0 break-words"
+                style={{
+                  "line-height": "var(--line-height-normal)",
+                  transition:
+                    "color 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1)), opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+                  color:
+                    todo().status === "completed" || todo().status === "cancelled"
+                      ? "var(--text-weak)"
+                      : "var(--text-strong)",
+                  opacity: todo().status === "pending" ? "0.92" : "1",
+                }}
+              />
+            </Checkbox>
+          )}
         </Index>
       </div>
       <div
@@ -282,91 +254,5 @@ function TodoList(props: { todos: Todo[]; stream?: TodoStreamItem[] }) {
         }}
       />
     </div>
-  )
-}
-
-/** Compact inline code snippet — last N lines of the code string */
-function codeTail(code: string | undefined, maxLines = 3): string | undefined {
-  if (!code) return undefined
-  const lines = code.trimEnd().split("\n")
-  if (lines.length <= maxLines) return code.trimEnd()
-  return "…\n" + lines.slice(-maxLines).join("\n")
-}
-
-function TodoStreamView(props: { items: TodoStreamItem[] }) {
-  // Show the most recent item with code content
-  const latest = createMemo(() => {
-    const items = props.items
-    // Prefer running items, fall back to the last completed item with code
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i]!
-      if (item.status === "running" && (item.code || item.filePath)) return item
-    }
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i]!
-      if (item.code || item.output) return item
-    }
-    // Fall back to the last item even without code
-    return items[items.length - 1]
-  })
-
-  return (
-    <Show when={latest()}>
-      {(item) => (
-        <div
-          data-slot="todo-stream"
-          class="ml-6 mt-1 mb-0.5 overflow-hidden rounded"
-          style={{
-            "max-height": "80px",
-            background: "var(--background-stronger)",
-            border: "1px solid var(--border-weak-base)",
-          }}
-        >
-          {/* Header: tool label + file path */}
-          <div
-            class="flex items-center gap-1.5 px-2 py-1"
-            style={{ "border-bottom": "1px solid var(--border-weak-base)" }}
-          >
-            <Show when={item().status === "running"}>
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  "border-radius": "50%",
-                  background: "var(--icon-interactive-base)",
-                  "flex-shrink": "0",
-                  animation: "var(--animate-pulse-scale)",
-                }}
-              />
-            </Show>
-            <TextShimmer
-              text={item().label}
-              class="text-11-medium text-text-weak truncate"
-              active={item().status === "running"}
-            />
-          </div>
-          {/* Code content */}
-          <Show when={codeTail(item().code) ?? codeTail(item().output)}>
-            {(snippet) => (
-              <pre
-                class="px-2 py-1 text-11-regular text-text-base overflow-hidden"
-                style={{
-                  margin: "0",
-                  "font-family": "var(--font-mono, monospace)",
-                  "white-space": "pre",
-                  "overflow-x": "auto",
-                  "max-height": "48px",
-                  "line-height": "1.4",
-                  "mask-image": "linear-gradient(to bottom, black 60%, transparent 100%)",
-                  "-webkit-mask-image": "linear-gradient(to bottom, black 60%, transparent 100%)",
-                }}
-              >
-                {snippet()}
-              </pre>
-            )}
-          </Show>
-        </div>
-      )}
-    </Show>
   )
 }
