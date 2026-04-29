@@ -275,7 +275,6 @@ export type TuiState = {
     count: () => number
     diff: (sessionID: string) => ReadonlyArray<TuiSidebarFileItem>
     todo: (sessionID: string) => ReadonlyArray<TuiSidebarTodoItem>
-    activity: (sessionID: string) => ReadonlyArray<TuiActivityItem>
     messages: (sessionID: string) => ReadonlyArray<Message>
     status: (sessionID: string) => SessionStatus | undefined
     permission: (sessionID: string) => ReadonlyArray<PermissionRequest>
@@ -312,15 +311,6 @@ export type TuiSidebarMcpItem = {
 export type TuiSidebarLspItem = Pick<LspStatus, "id" | "root" | "status">
 
 export type TuiSidebarTodoItem = Pick<Todo, "content" | "status">
-
-export type TuiActivityItem = {
-  id: string
-  tool: string
-  status: string
-  label: string
-  childSessionID?: string
-  time: { created: number }
-}
 
 export type TuiSidebarFileItem = {
   file: string

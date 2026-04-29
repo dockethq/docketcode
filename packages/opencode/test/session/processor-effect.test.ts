@@ -24,7 +24,6 @@ import { provideTmpdirServer } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { raw, reply, TestLLMServer } from "../lib/llm-server"
 import { Todo } from "../../src/session/todo"
-import { Activity } from "../../src/session/activity"
 
 void Log.init({ print: false })
 
@@ -168,7 +167,6 @@ const deps = Layer.mergeAll(
   Provider.defaultLayer,
   status,
   Todo.layer.pipe(Layer.provide(Bus.layer)),
-  Activity.layer.pipe(Layer.provide(Bus.layer)),
 ).pipe(Layer.provideMerge(infra))
 const env = Layer.mergeAll(
   TestLLMServer.layer,

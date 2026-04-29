@@ -330,21 +330,6 @@ export type EventTodoUpdated = {
   }
 }
 
-export type EventActivityRecorded = {
-  type: "activity.recorded"
-  properties: {
-    sessionID: string
-    activity: {
-      id: string
-      tool: string
-      status: string
-      label: string
-      childSessionID?: string
-      time: { created: number }
-    }
-  }
-}
-
 export type SessionStatus =
   | {
       type: "idle"
@@ -1143,7 +1128,6 @@ export type GlobalEvent = {
     | EventQuestionReplied
     | EventQuestionRejected
     | EventTodoUpdated
-    | EventActivityRecorded
     | EventSessionStatus
     | EventSessionIdle
     | EventSessionCompacted
@@ -2070,7 +2054,6 @@ export type Event =
   | EventQuestionReplied
   | EventQuestionRejected
   | EventTodoUpdated
-  | EventActivityRecorded
   | EventSessionStatus
   | EventSessionIdle
   | EventSessionCompacted
