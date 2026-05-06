@@ -356,7 +356,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       model: Provider.Model
       session: Session.Info
       tools?: Record<string, boolean>
-      processor: Pick<SessionProcessor.Handle, "message" | "updateToolCall" | "completeToolCall">
+      processor: Pick<SessionProcessor.Handle, "message" | "updateToolCall" | "completeToolCall" | "publishToolDelta" | "getActiveTodoID">
       bypassAgentCheck: boolean
       messages: MessageV2.WithParts[]
     }) {
@@ -396,6 +396,8 @@ NOTE: At any point in time through this workflow you should feel free to ask the
               ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
             })
             .pipe(Effect.orDie),
+        publishDelta: (val) => input.processor.publishToolDelta(options.toolCallId, val.field, val.delta),
+        getActiveTodoID: () => input.processor.getActiveTodoID(),
       })
 
       for (const item of yield* registry.tools({

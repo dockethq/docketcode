@@ -44,6 +44,8 @@ export interface Handle {
       attachments?: MessageV2.FilePart[]
     },
   ) => Effect.Effect<void>
+  readonly publishToolDelta: (toolCallID: string, field: string, delta: string) => Effect.Effect<void>
+  readonly getActiveTodoID: () => string | undefined
   readonly process: (streamInput: LLM.StreamInput) => Effect.Effect<Result>
 }
 
@@ -188,6 +190,23 @@ export const layer: Layer.Layer<
           sessionID: part.sessionID,
         }
         return part
+      })
+
+      const publishToolDelta = Effect.fn("SessionProcessor.publishToolDelta")(function* (
+        toolCallID: string,
+        field: string,
+        delta: string,
+      ) {
+        const call = ctx.toolcalls[toolCallID]
+        if (!call) return
+        yield* session.updatePartDelta({
+          sessionID: call.sessionID,
+          messageID: call.messageID,
+          partID: call.partID,
+          field,
+          delta,
+          todoID: ctx.activeTodoID,
+        })
       })
 
       const completeToolCall = Effect.fn("SessionProcessor.completeToolCall")(function* (
@@ -631,6 +650,8 @@ export const layer: Layer.Layer<
         },
         updateToolCall,
         completeToolCall,
+        publishToolDelta,
+        getActiveTodoID: () => ctx.activeTodoID,
         process,
       } satisfies Handle
     })

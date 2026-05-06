@@ -23,6 +23,8 @@ export type Context<M extends Metadata = Metadata> = {
   messages: MessageV2.WithParts[]
   metadata(input: { title?: string; metadata?: M }): Effect.Effect<void>
   ask(input: Omit<Permission.Request, "id" | "sessionID" | "tool">): Effect.Effect<void>
+  publishDelta?(input: { field: string; delta: string }): Effect.Effect<void>
+  getActiveTodoID?(): string | undefined
 }
 
 export interface ExecuteResult<M extends Metadata = Metadata> {

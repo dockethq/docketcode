@@ -194,6 +194,8 @@ function fake(
     },
     updateToolCall: Effect.fn("TestSessionProcessor.updateToolCall")(() => Effect.succeed(undefined)),
     completeToolCall: Effect.fn("TestSessionProcessor.completeToolCall")(() => Effect.void),
+    publishToolDelta: Effect.fn("TestSessionProcessor.publishToolDelta")(() => Effect.void),
+    getActiveTodoID: () => undefined,
     process: Effect.fn("TestSessionProcessor.process")(() => Effect.succeed(result)),
   } satisfies SessionProcessorModule.SessionProcessor.Handle
 }

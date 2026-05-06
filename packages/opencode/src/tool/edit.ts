@@ -184,6 +184,7 @@ export const EditTool = Tool.define(
               diagnostics: {},
             },
           })
+          if (ctx.publishDelta) yield* ctx.publishDelta({ field: "diff", delta: diff })
 
           let output = "Edit applied successfully."
           yield* lsp.touchFile(filePath, "document")

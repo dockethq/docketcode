@@ -443,6 +443,7 @@ export const BashTool = Tool.define(
       const code: number | null = yield* Effect.scoped(
         Effect.gen(function* () {
           const handle = yield* spawner.spawn(cmd(input.shell, input.name, input.command, input.cwd, input.env))
+          const publishDelta = ctx.publishDelta ?? (() => Effect.void)
 
           yield* Effect.forkScoped(
             Stream.runForEach(Stream.decodeText(handle.all), (chunk) => {
@@ -480,16 +481,19 @@ export const BashTool = Tool.define(
                         },
                       }),
                     ),
+                    Effect.andThen(publishDelta({ field: "output", delta: chunk })),
                   )
                 }
               }
 
-              return ctx.metadata({
-                metadata: {
-                  output: last,
-                  description: input.description,
-                },
-              })
+              return ctx
+                .metadata({
+                  metadata: {
+                    output: last,
+                    description: input.description,
+                  },
+                })
+                .pipe(Effect.andThen(publishDelta({ field: "output", delta: chunk })))
             }),
           )
 

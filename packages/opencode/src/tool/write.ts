@@ -46,6 +46,7 @@ export const WriteTool = Tool.define(
           const contentNew = next.text
 
           const diff = trimDiff(createTwoFilesPatch(filepath, filepath, contentOld, contentNew))
+          if (ctx.publishDelta) yield* ctx.publishDelta({ field: "diff", delta: diff })
           yield* ctx.ask({
             permission: "edit",
             patterns: [path.relative(Instance.worktree, filepath)],

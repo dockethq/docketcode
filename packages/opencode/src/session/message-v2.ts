@@ -627,6 +627,33 @@ export const Event = {
       partID: PartID.zod,
     }),
   }),
+  SubagentPartUpdated: BusEvent.define(
+    "message.part.subagent_updated",
+    z.object({
+      sessionID: SessionID.zod,
+      subSessionID: SessionID.zod,
+      parentMessageID: MessageID.zod,
+      parentCallID: z.string(),
+      part: Part.zod,
+      time: z.number(),
+      todoID: z.string().optional(),
+      parentTodoID: z.string().optional(),
+    }),
+  ),
+  SubagentPartDelta: BusEvent.define(
+    "message.part.subagent_delta",
+    z.object({
+      sessionID: SessionID.zod,
+      subSessionID: SessionID.zod,
+      parentCallID: z.string(),
+      messageID: MessageID.zod,
+      partID: PartID.zod,
+      field: z.string(),
+      delta: z.string(),
+      todoID: z.string().optional(),
+      parentTodoID: z.string().optional(),
+    }),
+  ),
 }
 
 export const WithParts = Schema.Struct({

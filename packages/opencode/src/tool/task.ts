@@ -7,6 +7,7 @@ import { MessageV2 } from "../session/message-v2"
 import { Agent } from "../agent/agent"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "../config"
+import { Bus } from "../bus"
 import { Effect } from "effect"
 
 export interface TaskPromptOps {
@@ -36,6 +37,7 @@ export const TaskTool = Tool.define(
     const agent = yield* Agent.Service
     const config = yield* Config.Service
     const sessions = yield* Session.Service
+    const bus = yield* Bus.Service
 
     const run = Effect.fn("TaskTool.execute")(function* (params: z.infer<typeof parameters>, ctx: Tool.Context) {
       const cfg = yield* config.get()
@@ -121,9 +123,53 @@ export const TaskTool = Tool.define(
         ops.cancel(nextSession.id)
       }
 
+      const parentCallID = ctx.callID
+      const parentSessionID = ctx.sessionID
+      const parentMessageID = ctx.messageID
+      const parentTodoID = ctx.getActiveTodoID?.()
+
       return yield* Effect.acquireUseRelease(
-        Effect.sync(() => {
+        Effect.gen(function* () {
           ctx.abort.addEventListener("abort", cancel)
+          if (!parentCallID) return { unsub: () => {} }
+          const unsub = yield* bus.subscribeAllCallback((evt) => {
+            if (
+              evt.type === "message.part.updated" &&
+              evt.properties.sessionID === nextSession.id
+            ) {
+              return Effect.runFork(
+                bus.publish(MessageV2.Event.SubagentPartUpdated, {
+                  sessionID: parentSessionID,
+                  subSessionID: nextSession.id,
+                  parentMessageID,
+                  parentCallID,
+                  part: evt.properties.part,
+                  time: evt.properties.time,
+                  todoID: evt.properties.todoID,
+                  parentTodoID,
+                }),
+              )
+            }
+            if (
+              evt.type === "message.part.delta" &&
+              evt.properties.sessionID === nextSession.id
+            ) {
+              return Effect.runFork(
+                bus.publish(MessageV2.Event.SubagentPartDelta, {
+                  sessionID: parentSessionID,
+                  subSessionID: nextSession.id,
+                  parentCallID,
+                  messageID: evt.properties.messageID,
+                  partID: evt.properties.partID,
+                  field: evt.properties.field,
+                  delta: evt.properties.delta,
+                  todoID: evt.properties.todoID,
+                  parentTodoID,
+                }),
+              )
+            }
+          })
+          return { unsub }
         }),
         () =>
           Effect.gen(function* () {
@@ -159,9 +205,10 @@ export const TaskTool = Tool.define(
               ].join("\n"),
             }
           }),
-        () =>
+        (acquired) =>
           Effect.sync(() => {
             ctx.abort.removeEventListener("abort", cancel)
+            acquired.unsub()
           }),
       )
     })
